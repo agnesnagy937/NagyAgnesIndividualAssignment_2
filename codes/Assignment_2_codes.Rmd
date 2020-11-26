@@ -1,0 +1,226 @@
+---
+title: "Assignment_2"
+date: 2020-11-29
+author: "Agnes_Nagy"
+output: pdf_document
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+# Main Body
+
+```{r , include = FALSE}
+library(tidyverse)
+library(WDI)
+my_path <- "/Users/agnesnagy/NagyAgnesIndividualAssignment_2/data/"
+covid_data <- read_csv(paste0(my_path,'clean/covid_pop_10_21_2020_clean.csv'))
+```
+## b) Dataset
+
+The dataset presents covid related statistics and population by country at 10-21-2020.
+The dependent variable under investigation is the registered death per capita.
+The potential explanatory variable is the registered cases per capita.
+
+```{r , include = FALSE}
+library(dplyr)
+covid_data <- covid_data %>%
+  mutate(cases_per_capita = confirmed / population)
+covid_data <- covid_data %>%
+  mutate(death_per_capita = death / population)
+```
+
+## c) Histograms - deciding on data dropping
+
+Based on the below histograms we can see that there are some extreme values in the datasets. Taking population as an example, there are some countries having much higher numbers than others. However in order to see the dataset as a whole, I decided not to drop any values to present the cases and death per capita as it is in the reality. Therefore no omission of extremes was applied on this dataset as these extremes are not mistakes but real representation of the dataset.
+
+```{r, echo=FALSE, out.width = '25%'}
+ggplot(data = covid_data , aes( x = cases_per_capita ) ) +
+  geom_histogram( color = "black", fill = "white") +
+  ggtitle("Cases per capita")
+
+ggplot(data = covid_data , aes( x = death_per_capita ) ) +
+  geom_histogram( color = "black", fill = "white") +
+  ggtitle("Deaths per capita")
+
+ggplot(data = covid_data , aes( x = confirmed ) ) +
+  geom_histogram( color = "black", fill = "white") +
+  ggtitle("Confirmed cases")
+
+ggplot(data = covid_data , aes( x = death ) ) +
+  geom_histogram( color = "black", fill = "white") +
+  ggtitle("Number of deaths")
+
+ggplot(data = covid_data , aes( x = recovered ) ) +
+  geom_histogram( color = "black", fill = "white") +
+  ggtitle("Number of recovered cases")
+
+ggplot(data = covid_data , aes( x = active ) ) +
+  geom_histogram( color = "black", fill = "white") +
+  ggtitle("Number of active cases")
+
+ggplot(data = covid_data , aes( x = population ) ) +
+  geom_histogram( color = "black", fill = "white") +
+  ggtitle("Population per cuntry")
+```
+
+## d) Measurig per capita values at my dataset (calculated as cases / population and deaths / population)
+
+## e) Proper scaling: as working with per capita data, no scaling was applied, however in order to present the possibility (and ability) of scaling confirmed cases in million was added to the dataset as an example. 
+
+```{r , include = FALSE}
+library(dplyr)
+covid_data <- covid_data %>%
+  mutate(confirmed_cases_million = confirmed / 1000000)
+```
+
+## f) Summary tables for variables x and yx
+
+```{r, echo = FALSE }
+library(moments)
+confirmed_sum <- covid_data %>% summarise(
+  mean     = mean(cases_per_capita),
+  median   = median(cases_per_capita),
+  min      = min(cases_per_capita),
+  max      = max(cases_per_capita),
+  sd      = sd(cases_per_capita) )
+death_sum <- covid_data %>% summarise(
+  mean     = mean(death_per_capita),
+  median   = median(death_per_capita),
+  min      = min(death_per_capita),
+  max      = max(death_per_capita),
+  sd      = sd(death_per_capita) )
+Variables_summary <- confirmed_sum %>% add_row( death_sum )
+knitr::kable(Variables_summary,caption="Variables summary - Confirmed cases and deaths per capita")
+```
+
+## f) Histrograms 
+
+```{r, echo=FALSE, out.width = '50%'}
+ggplot(data = covid_data , aes( x = cases_per_capita ) ) +
+  geom_histogram( color = "tomato4", fill = "rosybrown") +
+  ggtitle("Cases per capita")
+
+ggplot(data = covid_data , aes( x = death_per_capita ) ) +
+  geom_histogram( color = "rosybrown", fill = "tomato4") +
+  ggtitle("Deaths per capita")
+```
+
+## g) Scatter plots from variables x and y - per capita analysis:
+
+### g.3) Chosen model: log transforming both variables: log-log model which is suitable when we assume no linear relationship
+Level-level and log-level models in the appendix presented
+
+
+```{r, echo=FALSE, out.width = '50%'}
+require(scales)
+library(tidyverse)
+library(lspline)
+library(estimatr)
+library(texreg)
+ggplot( covid_data , aes(x = cases_per_capita, y = death_per_capita)) +
+  geom_point() +
+  geom_smooth(method="loess")+
+  labs(x = "Cases per capita 10-21-2020 , ln scale )",y = "Deaths per capita, ln scale)") +
+  scale_x_continuous( trans = log_trans())+
+  scale_y_continuous( trans = log_trans() )
+```
+
+## h-i-j) Regression model visuals and tests
+
+### h.i) Simple linear regression
+
+```{r, echo=FALSE}
+
+Reg_1 <- lm_robust( log(death_per_capita) ~ log(cases_per_capita) , data = covid_data )
+summary(Reg_1)
+```
+
+### j explained: I choose a simplified hypotheses testing, which can be carried out using the summary statistics of Reg_1 
+Having a look at the summary, we can say that H0 according to which the value equals zero, is false, so we can reject it. 
+(Tesing: coefficient = 0)
+
+## k) Best and worst 5 residuals
+
+Get the predicted y values from the model
+Calculate the errors of the model
+
+```{r, echo=FALSE}
+covid_data$Reg1_y_pred <- Reg_1$fitted.values
+covid_data$Reg_1_res <- Reg_1$df - covid_data$Reg1_y_pred
+
+# Find countries with largest negative errors
+covid_data %>% top_n( -5 , Reg_1_res ) %>% 
+      select( country , death_per_capita , covid_data$Reg_1_y_pred , Reg_1_res )
+
+# Find countries with largest positive errors
+covid_data %>% top_n( 5 , Reg_1_res ) %>% 
+      select( country , death_per_capita , covid_data$Reg_1_y_pred , Reg_1_res )
+```
+
+# Appendix
+
+## g) other models - not chosen 
+
+### g.1) level-level model without scaling: linear relationship assumed
+
+Graph presents more deviation as cases per capita increases
+
+```{r, echo=FALSE, out.width = '50%'}
+ggplot( covid_data , aes(x = cases_per_capita, y = death_per_capita)) +
+  geom_point() +
+  geom_smooth(method="loess")+
+  labs(x = "Cases per capita 10-21-2020",y = "Deaths per capita")
+```
+
+### g.2) Log-level model: under the assumption that variables have an exponential growth relationship, so when x value increases, y value increases more - exponentially
+
+This graph is presenting a more accurate relationship between x and y
+
+```{r, echo=FALSE, out.width = '50%'}
+
+ggplot( covid_data , aes(x = cases_per_capita, y = death_per_capita)) +
+  geom_point() +
+  geom_smooth(method="loess")+
+  labs(x = "Cases per capita 10-21-2020 , ln scale )",y = "Deaths per capita") +
+  scale_x_continuous( trans = log_trans())
+```
+
+## h) other models not chosen:
+
+Other models presented in the appendix
+
+### h.ii) Quandratic regression 
+
+```{r, echo=FALSE}
+Reg_2 <- lm_robust( death_per_capita ~ log(cases_per_capita) + log(cases_per_capita) , data = covid_data )
+summary(Reg_2)
+```	
+
+
+### h.iii) Piecewise linear spline regression
+
+```{r, echo=FALSE}
+cutoff_ln <- log( 50 )
+Reg_3 <- lm_robust(death_per_capita ~ lspline( log(cases_per_capita) , cutoff_ln ), data = covid_data )
+summary(Reg_3)
+```
+
+### h.iv) Weighted linear regression - weighted per capita 
+
+```{r, echo=FALSE}
+Reg_4 <- lm_robust(death_per_capita ~ log(cases_per_capita), data = covid_data , weights = population)
+summary(Reg_4)
+```
+
+## i.ii) showing the models (Reg_1-Reg_4) together: 
+
+```{r, echo=FALSE}
+out <- "/Users/agnesnagy/NagyAgnesIndividualAssignment_2/out/"
+htmlreg( list(Reg_1 , Reg_2 , Reg_3 , Reg_4),
+         type = 'html',
+         custom.model.names = c("Cases_per_capita - linear","Cases_per_capita - quadratic","Cases_per_capita - cubic", "Cases_per_capita - weighted linear"),
+         caption = "Modelling cases per capita around the world",
+         file = paste0( out ,'model_comparison.html'), include.ci = FALSE)
+```
